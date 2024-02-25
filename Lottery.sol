@@ -1,25 +1,30 @@
 // SPDX-License-Identifier: MIT
 
-/// @dev solitity version.
+/// @dev solidity version.
 pragma solidity >=0.7.0 <0.9.0;
+
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+//import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+//import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /** @title Main Lottery Contract.
  * @dev Randomness provided internally in this version
  * subsequent versions will use external randomness (Chainlink VRF)
  */
-contract Lottery is ReentracyGuard, Ownable{
-    using SafeERC20 for IERC;
+contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the deployer as contract owner for now. can make this contract abstract later
+    //using SafeERC20 for IERC20;
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
-    uint256 public maximumNumberOfTickets =
-    uint256 public ticketCommission =
-
-    address public lotteryOperator; // admin
-    addresss public lastWinnersAddy; //Addresses of the winners of the last round
+    uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 oer round
+    uint256 public ticketCommission = 0.2 *10**18;
+    uint256 public maximumNumberOfTicketsPerBuy = 5; // Functionality to control this variable : setMaximumNumberOfTickets
+    uint256 public currentLotteryId;
     uint public lastWinnersAmounts; // Amounts the winners of last round won
 
-
-    address public treasuryAddy = //where all smart contract profits would be sent for safekeeping
+    address public lotteryOperator; // admin addy
+    address public lastWinnersAddy; //Addresses of the winners of the last round
+    address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
 
@@ -62,7 +67,7 @@ contract Lottery is ReentracyGuard, Ownable{
     event LotteryOpen(
         uint256 indexed lotteryId,
         uint256 lotteryStartTime,
-        uint256 lotteryEndTime,
+        uint256 lotteryEndTime
 
     );
     event LotteryClose(
@@ -73,10 +78,6 @@ contract Lottery is ReentracyGuard, Ownable{
         uint256 indexed lotteryId,
         uint256 amount 
     );
-
-    constructor(){
-        
-    }
 
     struct Ticket{
         address tickerOwner;
@@ -92,6 +93,7 @@ contract Lottery is ReentracyGuard, Ownable{
 
     mapping(uint256 => Ticket) private _tickets;
     mapping(uint256 => LotteryRound) private _lotteryRounds;
+    mapping(address => uint256) public winnings;
 
     /**
     * Buy ticket functionality
@@ -100,17 +102,17 @@ contract Lottery is ReentracyGuard, Ownable{
     */
     function buyTickets(uint256 _lotteryId)
         external
-        override
+        payable
         notContract
         nonReentrant
     {
         require(
-            _lotteries[_lotteryId].status == Status.Open, 
+            _lotteryRounds[_lotteryId].status == Status.Open, 
             "This round is not open yet!"
         );
 
         require(
-            block.timestamp < _lotteries[_lotteryId].lotteryEndTime,
+            block.timestamp < _lotteryRounds[_lotteryId].lotteryEndTime,
             "This round has ended :-("
         );
 
@@ -121,7 +123,7 @@ contract Lottery is ReentracyGuard, Ownable{
             "No more tickets for this round. Join the next one :-)"
         );
 
-        //write  here statement to transfer MATIC (ticket cost) to the contract
+        //write  here statement to transfer MATIC (ticket cost) + ticket commission to the contract
 
         // write here statement to increment total amount collected for this lottery round
 
@@ -129,7 +131,7 @@ contract Lottery is ReentracyGuard, Ownable{
             tickets.push(msg.sender);
         }
 
-        emit TicketPurchase(msg.sender, _lotteryId);
+        emit TicketPurchase(msg.sender, _lotteryId, msg.value);
 
     }
 
@@ -141,33 +143,31 @@ contract Lottery is ReentracyGuard, Ownable{
 
     function closeLottery(uint256 _lotteryId)
         external
-        override
         isAdmin
         nonReentrant
     {
         require(
-            _lotteries[_lotteryId].status == Status.Open, 
+            _lotteryRounds[_lotteryId].status == Status.Open, 
             "This round is not open :-("
         );
 
         require(
-            block.timestamp > _lotteries[_lotteryId].endTIme,
+            block.timestamp > _lotteryRounds[_lotteryId].lotteryEndTime,
             "Lottery Round not over :-)"
         );
 
-        _lotteries[_lotteryId].status = Status.Close;
+        _lotteryRounds[_lotteryId].status = Status.Close;
 
         emit LotteryClose(_lotteryId);
     }
 
     function drawWinnersAndMakeLotteryClaimable(uint256 _lotteryId)
         external
-        override
         isAdmin
         nonReentrant
     {
         require(
-            _lotteries[_lotteryId].status == Status.Close, 
+            _lotteryRounds[_lotteryId].status == Status.Close, 
             "Lottery has to be closed to draw winners :-)"
         );
 
@@ -183,7 +183,7 @@ contract Lottery is ReentracyGuard, Ownable{
 
         // init lastWinners and amount they won
 
-        _lotteries[_lotteryId].status = Status.Claimable;
+        _lotteryRounds[_lotteryId].status = Status.Claimable;
 
         // safeTransfer treasuryfee to the treasury addy
 
@@ -192,29 +192,33 @@ contract Lottery is ReentracyGuard, Ownable{
     /**
     *@notice Start a lottery round
     *@dev Callable by the admin(operator)
-    *@param _treasuryFee
+    *@param _treasuryFee: treasuryFee
      */
     function startLottery(
         uint256 _lotteryEndTime,
         uint256 _treasuryFee
-    ) external override isAdmin{
+    ) external 
+      isAdmin
+    {
         require(
-            (currentLotteryId == 0) || (_lotteries[currentLotteryId].status == Status.Claimable),
+            (currentLotteryId == 0) || (_lotteryRounds[currentLotteryId].status == Status.Claimable),
             "New Round should not be started because old round is still claimable"
         );
         currentLotteryId++;
-        _lotteries[currentLotteryId] = Lottery({
+
+        _lotteryRounds[currentLotteryId] = LotteryRound({
             status: Status.Open,
-            startTime: block.timestamp,
-            endTIme: _endTime,
-            treasuryFee: _treasuryFee
+            lotteryStartTime: block.timestamp,
+            lotteryEndTime: _lotteryEndTime,
+            treasuryFee: _treasuryFee,
+            totalAmountInCurrentRound: 0 
         });
 
         emit LotteryOpen(
             currentLotteryId,
             block.timestamp,
-            _endTime
-        )
+            _lotteryEndTime
+        );
     }
 
     /**
@@ -237,7 +241,10 @@ contract Lottery is ReentracyGuard, Ownable{
         onlyWinner
     {
         address payable winner = payable(msg.sender);
-        uint256
+        uint256 reward = winnings[winner];
+        winnings[winner] = 0;
+
+        winner.transfer(reward);
     }
 
     /**
@@ -246,7 +253,6 @@ contract Lottery is ReentracyGuard, Ownable{
     function viewCurrentLotteryId() 
         external 
         view 
-        override 
         returns (uint256) 
     {
         return currentLotteryId;
@@ -259,16 +265,24 @@ contract Lottery is ReentracyGuard, Ownable{
     function viewLottery(uint256 _lotteryId) 
         external 
         view 
-        returns (Lottery memory) 
+        returns (LotteryRound memory) 
     {
-        return _lotteries[_lotteryId];
+        return _lotteryRounds[_lotteryId];
     }  
 
     /**
     *@notice Calculate winners rewards for the 5 winners
-    *@param */
-    function calculateRewardsForWinners(){
-
+    *@param _lotteryId : lotteryId
+     */
+    function calculateRewardsForWinners(uint256 _lotteryId)
+        external
+        view
+        returns (uint256)
+    {
+        uint256 totalPrize = _lotteryRounds[_lotteryId].totalAmountInCurrentRound;
+        uint256 winnerShare = totalPrize * (1 - _lotteryRounds[_lotteryId].treasuryFee / 10**18) / 5;
+        
+        return winnerShare;
     }
 
     function isWinner()
@@ -279,7 +293,7 @@ contract Lottery is ReentracyGuard, Ownable{
         return winnings[msg.sender] > 0;
     }
 
-    function RemainingTicket()
+    function RemainingTickets()
         public
         view
         returns (uint256)
@@ -291,10 +305,14 @@ contract Lottery is ReentracyGuard, Ownable{
     /**
      * @notice Check if an address is a contract
      */
-    function _isContract(address _addr) internal view returns (bool) {
+    function _isContract(address _addr) 
+        internal 
+        view 
+        returns (bool) 
+    {
         uint256 size;
         assembly {
-            size := extcodesize(_addr)
+            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true is so.
         }
         return size > 0;
     }      
