@@ -352,7 +352,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
     {
         uint256 size;
         assembly {
-            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true is so.
+            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true if so.
         }
         return size > 0;
     }      
