@@ -5,15 +5,17 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-//import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-//import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+
+
 
 /** @title Main Lottery Contract.
  * @dev Randomness provided internally in this version
  * subsequent versions will use external randomness (Chainlink VRF)
  */
-contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the deployer as contract owner for now. can make this contract abstract later
-    //using SafeERC20 for IERC20;
+contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the deployer, as contract owner for now. can make this contract abstract later
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
     uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 oer round
@@ -27,6 +29,10 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
     address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
+
+    VRFCoordinatorV2Interface public vrfCoordinator;
+    bytes32 public keyHash;
+    uint256 public requestFee;    
 
 
     enum Status{
@@ -167,26 +173,18 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
         nonReentrant
     {
         require(
-            _lotteryRounds[_lotteryId].status == Status.Close, 
-            "Lottery has to be closed to draw winners :-)"
+            _lotteryRounds[_lotteryId].status == Status.Close,
+            "Lottery has to be closed to draw winners"
         );
+        require(tickets.length > 0, "No tickets were bought this round");
 
-        require(
-            tickets.length > 0,
-            "No tickets were bought this round"
-        );
-        // calculate prize money to share post-treasury fee
+        // Calculating prize money to share post-treasury fee
+        uint256 totalPrize = _lotteryRounds[_lotteryId].totalAmountInCurrentRound;
+        uint256 treasuryFeeAmount = totalPrize * _lotteryRounds[_lotteryId].treasuryFee / 10**18;
+        uint256 winnerShare = (totalPrize - treasuryFeeAmount) / 5; // share for each winner :-)
 
-        // random picking logic here to pick five winners and then share the pool to the five winners
-
-        // initialize amount to withdraw to treasury
-
-        // init lastWinners and amount they won
-
-        _lotteryRounds[_lotteryId].status = Status.Claimable;
-
-        // safeTransfer treasuryfee to the treasury addy
-
+        // Requesting randomness from Chainlink VRF
+        requestRandomness();
     }
 
     /**
@@ -246,6 +244,48 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
 
         winner.transfer(reward);
     }
+
+    function selectWinners(uint256 randomness) internal view returns (uint256[] memory) {
+        uint256[] memory selectedWinners = new uint256[](5); //setting winners to an array of 5 elements
+        for (uint256 i = 0; i < 5; i++) {
+            selectedWinners[i] = randomness % tickets.length; //choosing randomly from the tickets array :-)
+        }
+        return selectedWinners;
+    }    
+
+    function requestRandomness() public isAdmin {
+        require(
+            LINK.balanceOf(address(this)) >= requestFee,
+            "Insufficient LINK balance");
+
+        VRFCoordinatorV2.Request calldata request = vrfCoordinator.requestRandomness(
+            keyHash,
+            requestFee,
+            1
+        );
+        requestId = request.requestId;
+    }
+
+    function fulfillRandomness(uint256 requestId, uint256 randomness) 
+        internal 
+        override 
+    {
+        require(requestId == this.requestId, "Request ID does not match :-(");
+
+        // Selecting winners randomly
+        uint256[] memory selectedWinners = selectWinners(randomness);
+
+        // Assigning winnings to selected winners
+        for (uint256 i = 0; i < selectedWinners.length; i++) {
+            address winnerAddress = tickets[selectedWinners[i]];
+            winnings[winnerAddress] = winnerShare;
+        }
+
+        // Updating lottery round status and transfering treasury balance
+        _lotteryRounds[_lotteryId].status = Status.Claimable;
+        payable(treasuryAddy).transfer(treasuryFeeAmount);
+
+    }    
 
     /**
      * @notice View current lottery id
