@@ -6,7 +6,8 @@ pragma solidity >=0.7.0 <0.9.0;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
+import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
+//import "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 
@@ -15,7 +16,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
  * @dev Randomness provided internally in this version
  * subsequent versions will use external randomness (Chainlink VRF)
  */
-contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the deployer, as contract owner for now. can make this contract abstract later
+contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
     uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 oer round
@@ -24,6 +25,8 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
     uint256 public currentLotteryId;
     uint public lastWinnersAmounts; // Amounts the winners of last round won
 
+
+    address public constant LINK_TOKEN_ADDRESS = 0x326037b4B1d8D50Db93e7D410cEE57ABe3a0C9a1;
     address public lotteryOperator; // admin addy
     address public lastWinnersAddy; //Addresses of the winners of the last round
     address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
@@ -255,8 +258,9 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
 
     function requestRandomness() public isAdmin {
         require(
-            LINK.balanceOf(address(this)) >= requestFee,
-            "Insufficient LINK balance");
+            LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this)) >= requestFee, 
+            "Insufficient LINK balance"
+        );
 
         VRFCoordinatorV2.Request calldata request = vrfCoordinator.requestRandomness(
             keyHash,
@@ -265,6 +269,10 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
         );
         requestId = request.requestId;
     }
+
+    function getLinkBalance() public view returns (uint256) {
+        return LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this));
+    }    
 
     function fulfillRandomness(uint256 requestId, uint256 randomness) 
         internal 
@@ -352,7 +360,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard { //set myself, the dep
     {
         uint256 size;
         assembly {
-            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true if so.
+            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true is so.
         }
         return size > 0;
     }      
