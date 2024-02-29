@@ -3,9 +3,9 @@
 /// @dev solidity version.
 pragma solidity >=0.7.0 <0.9.0;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import { ReentrancyGuard } from  "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import { VRFV2WrapperConsumerBase } from "@chainlink/contracts@0.8.0/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol";
 import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";

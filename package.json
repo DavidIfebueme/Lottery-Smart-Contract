@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@chainlink/contracts": "^0.8.0"
+    "@chainlink/contracts": "file:0.8.0/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol",
+    "@openzeppelin/contracts": "^5.0.2"
   }
 }
