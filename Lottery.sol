@@ -6,9 +6,9 @@ pragma solidity >=0.7.0 <0.9.0;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
-//import "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import { VRFV2WrapperConsumerBase } from "@chainlink/contracts@0.8.0/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol";
+import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
+import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 
 
@@ -16,19 +16,21 @@ import "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
  * @dev Randomness provided internally in this version
  * subsequent versions will use external randomness (Chainlink VRF)
  */
-contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
+contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBase{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
     uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 oer round
     uint256 public ticketCommission = 0.2 *10**18;
     uint256 public maximumNumberOfTicketsPerBuy = 5; // Functionality to control this variable : setMaximumNumberOfTickets
     uint256 public currentLotteryId;
-    uint public lastWinnersAmounts; // Amounts the winners of last round won
+    uint256 public lastWinnersAmounts; // Amounts the winners of last round won
 
 
     address public constant LINK_TOKEN_ADDRESS = 0x326037b4B1d8D50Db93e7D410cEE57ABe3a0C9a1;
+    address public constant wrapperAddress = 0x99aFAf084eBA697E584501b8Ed2c0B37Dd136693;
+
     address public lotteryOperator; // admin addy
-    address public lastWinnersAddy; //Addresses of the winners of the last round
+    address[] public lastWinnersAddy; //Addresses of the winners of the last round
     address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
@@ -103,6 +105,13 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //s
     mapping(uint256 => Ticket) private _tickets;
     mapping(uint256 => LotteryRound) private _lotteryRounds;
     mapping(address => uint256) public winnings;
+
+
+   constructor()
+        VRFV2WrapperConsumerBase(LINK_TOKEN_ADDRESS, wrapperAddress)
+    {
+         vrfCoordinator = VRFCoordinatorV2(LINK_TOKEN_ADDRESS);
+    }    
 
     /**
     * Buy ticket functionality
@@ -247,20 +256,13 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //s
 
         winner.transfer(reward);
     }
-
-    function selectWinners(uint256 randomness) internal view returns (uint256[] memory) {
-        uint256[] memory selectedWinners = new uint256[](5); //setting winners to an array of 5 elements
-        for (uint256 i = 0; i < 5; i++) {
-            selectedWinners[i] = randomness % tickets.length; //choosing randomly from the tickets array :-)
-        }
-        return selectedWinners;
-    }    
+  
 
     function requestRandomness() public isAdmin {
         require(
             LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this)) >= requestFee, 
             "Insufficient LINK balance"
-        );
+        );  
 
         VRFCoordinatorV2.Request calldata request = vrfCoordinator.requestRandomness(
             keyHash,
@@ -269,6 +271,14 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //s
         );
         requestId = request.requestId;
     }
+
+    function selectWinners(uint256 randomness) internal view returns (uint256[] memory) {
+        uint256[] memory selectedWinners = new uint256[](5); //setting winners to an array of 5 elements
+        for (uint256 i = 0; i < 5; i++) {
+            selectedWinners[i] = randomness % tickets.length; //choosing randomly from the tickets array :-)
+        }
+        return selectedWinners;
+    }      
 
     function getLinkBalance() public view returns (uint256) {
         return LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this));
