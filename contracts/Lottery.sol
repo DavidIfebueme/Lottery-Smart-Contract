@@ -6,7 +6,7 @@ pragma solidity >=0.7.0 <0.9.0;
 import { ReentrancyGuard } from  "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import { VRFV2WrapperConsumerBase } from "@chainlink/contracts@0.8.0/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol";
+import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
@@ -16,7 +16,7 @@ import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkT
  * @dev Randomness provided internally in this version
  * subsequent versions will use external randomness (Chainlink VRF)
  */
-contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBase{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
+contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
     uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 oer round

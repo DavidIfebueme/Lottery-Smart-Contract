@@ -6,7 +6,7 @@ pragma solidity >=0.7.0 <0.9.0;
 import { ReentrancyGuard } from  "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import { VRFV2WrapperConsumerBase } from "@chainlink/contracts@0.8.0/src/v0.8/vrf/VRFV2WrapperConsumerBase.sol";
+import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
@@ -14,7 +14,7 @@ import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkT
 /** @title Main Lottery Contract.
  * @dev Randomness provided externally using Chainlink VRF V2.
  */
-contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBase{ //set myself, the deployer, as contract owner for now. can make this contract abstract later
+contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //set myself, the deployer, as contract owner for now. can make this contract abstract later
 
     uint256  public ticketPrice = 2 * 10**18; // V2 would use chainlink pricefeeds for a more dynamic outlook.
     uint256 public maximumNumberOfTickets = 1000; // set max number of tickets to 1000 per round. Should probably write function to make this dynamic. Like in maximumNumberOfTicketsPerBuy
@@ -28,6 +28,17 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBa
     address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
+
+
+    //inherited VRF variables
+    VRFCoordinatorV2Interface COORDINATOR;
+    uint64 s_subscription;
+
+    bytes32 keyHash = ;
+    uint32 callbackGasLimit = 200000;
+    uint16 requestConfirmations = 3; // the more this var, the more secure but the slower the txn
+    uint32 numWords = 5; // Thought of adding this var to generate all the winners' ID so we just use one vrf call/cost per round instead of 5
+
 
     enum Status{
         Open,
@@ -79,6 +90,26 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBa
         uint256 indexed lotteryId,
         uint256 amount 
     );
+
+    event RequestSent();
+
+    event RequestFulfilled();
+
+    
+    /**
+     * Hardcoded for Polygon Mumbai
+     */    
+    constructor(
+        uint16 subscriptionId
+    )
+        VRFConsumerBaseV2(0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed)
+        msg.sender
+    {
+        COORDINATOR = VRFCoordinatorV2Interface(
+            0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed
+        );
+        s_subscriptionId = subscriptionId;        
+    }    
 
     struct Ticket{
         address tickerOwner;
@@ -179,7 +210,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBa
         uint256 winnerShare = (totalPrize - treasuryFeeAmount) / 5; // share for each winner :-)
 
         // Requesting randomness from Chainlink VRF
-        requestRandomness();
+        //requestRandomness();
     }
 
     /**
@@ -240,9 +271,9 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBa
         winner.transfer(reward);
     }
   
-    function getLinkBalance() public view returns (uint256) {
-        return LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this));
-    }    
+    // function getLinkBalance() public view returns (uint256) {
+    //     return LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this));
+    // }    Dont need this anymore. Switching to subscription model
 
     /**
      * @notice View current lottery id
@@ -315,4 +346,3 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFV2WrapperConsumerBa
     }      
 
 }
-
