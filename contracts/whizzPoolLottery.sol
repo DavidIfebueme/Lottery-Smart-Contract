@@ -32,9 +32,9 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
 
     //inherited VRF variables
     VRFCoordinatorV2Interface COORDINATOR;
-    uint64 s_subscription;
+    uint64 s_subscriptionId;
 
-    bytes32 keyHash = ;
+    bytes32 keyHash = 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c ;
     uint32 callbackGasLimit = 200000;
     uint16 requestConfirmations = 3; // the more this var, the more secure but the slower the txn
     uint32 numWords = 5; // Thought of adding this var to generate all the winners' ID so we just use one vrf call/cost per round instead of 5
@@ -91,7 +91,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         uint256 amount 
     );
 
-    event RequestSent();
+    event RequestSent(uint256 requestId);
 
     event RequestFulfilled();
 
@@ -103,7 +103,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         uint16 subscriptionId
     )
         VRFConsumerBaseV2(0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed)
-        msg.sender
+        //msg.sender
     {
         COORDINATOR = VRFCoordinatorV2Interface(
             0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed
@@ -193,26 +193,6 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         emit LotteryClose(_lotteryId);
     }
 
-    function drawWinnersAndMakeLotteryClaimable(uint256 _lotteryId)
-        external
-        isAdmin
-        nonReentrant
-    {
-        require(
-            _lotteryRounds[_lotteryId].status == Status.Close,
-            "Lottery has to be closed to draw winners"
-        );
-        require(tickets.length > 0, "No tickets were bought this round");
-
-        // Calculating prize money to share post-treasury fee
-        uint256 totalPrize = _lotteryRounds[_lotteryId].totalAmountInCurrentRound;
-        uint256 treasuryFeeAmount = totalPrize * _lotteryRounds[_lotteryId].treasuryFee / 10**18;
-        uint256 winnerShare = (totalPrize - treasuryFeeAmount) / 5; // share for each winner :-)
-
-        // Requesting randomness from Chainlink VRF
-        //requestRandomness();
-    }
-
     /**
     *@notice Start a lottery round
     *@dev Callable by the admin(operator)
@@ -271,10 +251,6 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         winner.transfer(reward);
     }
   
-    // function getLinkBalance() public view returns (uint256) {
-    //     return LinkTokenInterface(LINK_TOKEN_ADDRESS).balanceOf(address(this));
-    // }    Dont need this anymore. Switching to subscription model
-
     /**
      * @notice View current lottery id
      */
@@ -296,7 +272,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         returns (LotteryRound memory) 
     {
         return _lotteryRounds[_lotteryId];
-    }  
+    }
 
     /**
     *@notice Calculate winners rewards for the 5 winners
@@ -312,6 +288,51 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         
         return winnerShare;
     }
+  
+
+    function requestRandomWords()
+        external
+        isAdmin
+        returns (uint256 requestId)
+    {
+        // Will revert if subscription is not set and funded.
+        requestId = COORDINATOR.requestRandomWords(
+            keyHash,
+            s_subscriptionId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+
+        emit RequestSent(requestId);
+        return requestId;
+    }
+
+    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords)
+        internal
+        override
+    {
+
+        uint256 startingIndex = randomWords[0] % tickets.length;
+        address[] memory winners = new address[](5);
+
+        for (uint256 i = 0; i < 5; i++) {
+            
+            uint256 winnerIndex = (startingIndex + i) % tickets.length; // Calculating winner index
+
+            winners[i] = tickets[winnerIndex]; // Assigning winner address to the corresponding index
+        }
+
+        _lotteryRounds[currentLotteryId].status = Status.Claimable;
+
+        // for (uint256 i = 0; i < 5; i++) {
+        //     winnings[winners[i]] = calculateRewardsForWinners(currentLotteryId);
+        // }
+
+        
+        //emit WinnersAnnounced(winners); remember to define this event later :-)
+
+    } 
 
     function isWinner()
         public
@@ -346,3 +367,4 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     }      
 
 }
+
