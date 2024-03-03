@@ -8,7 +8,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
-import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import { LinkTokenInterface } from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 
 /** @title Main Lottery Contract.
@@ -93,7 +93,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
 
     event RequestSent(uint256 requestId);
 
-    event RequestFulfilled();
+    event RequestFulfilled(uint256 requestId);
 
     
     /**
@@ -312,6 +312,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         internal
         override
     {
+        require(requestId == requestId, "Request ID does not match!");
 
         uint256 startingIndex = randomWords[0] % tickets.length;
         address[] memory winners = new address[](5);
@@ -367,4 +368,5 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     }      
 
 }
+
 
