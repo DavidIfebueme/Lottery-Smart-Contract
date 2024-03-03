@@ -25,7 +25,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
 
     address public lotteryOperator; // admin addy
     address[] public lastWinnersAddy; //Addresses of the winners of the last round
-    address public treasuryAddy; //where all smart contract profits would be sent for safekeeping
+    address public constant treasuryAddy = 0xF3E71A6b9CDc8fC54f8dc9B80aC1E0f629A37cf3; //where all smart contract profits would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
 
@@ -108,7 +108,8 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         COORDINATOR = VRFCoordinatorV2Interface(
             0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed
         );
-        s_subscriptionId = subscriptionId;        
+        s_subscriptionId = subscriptionId; 
+        lotteryOperator = msg.sender; // set myself, the owner, as operator first. Can be delegated to another addy :-)      
     }    
 
     struct Ticket{
@@ -153,13 +154,28 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         require(
             numberOfTicketsToBuy <= RemainingTickets(),
             "No more tickets for this round. Join the next one :-)"
+            );
+
+        // Calculating total cost 
+        uint256 totalCost = numberOfTicketsToBuy * (ticketPrice + ticketCommission);
+
+        // Require exact amount for purchase. Sorry, No refunds :-)
+        require(
+            msg.value == totalCost,
+            "Don't try to play me. Sent amount does not match ticket and commission cost!"
         );
 
-        //write  here statement to transfer MATIC (ticket cost) + ticket commission to the contract
+        // Funding the contract with the purchased tickets    
+        payable(address(this)).transfer(ticketPrice * numberOfTicketsToBuy);
 
-        // write here statement to increment total amount collected for this lottery round
+        // Transfering commission to the treasury. SHould have probably done this just before emitting TicketPurchase. It is what it is.
+        payable(treasuryAddy).transfer(ticketCommission * numberOfTicketsToBuy);
 
-        for (uint256 i = 0; i < numberOfTicketsToBuy; i++){
+        // Incrementing total amount collected for this round
+        _lotteryRounds[_lotteryId].totalAmountInCurrentRound += totalCost;
+
+        // Adding the tickets to the pool
+        for (uint256 i = 0; i < numberOfTicketsToBuy; i++) {
             tickets.push(msg.sender);
         }
 
@@ -187,6 +203,13 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
             block.timestamp > _lotteryRounds[_lotteryId].lotteryEndTime,
             "Lottery Round not over :-)"
         );
+
+
+        // I should probably optimize this process. It is what it is.
+        uint256 totalAmount = _lotteryRounds[_lotteryId].totalAmountInCurrentRound;
+        uint256 treasuryFee = totalAmount * _lotteryRounds[_lotteryId].treasuryFee / 10**18;
+
+        payable(treasuryAddy).transfer(treasuryFee);
 
         _lotteryRounds[_lotteryId].status = Status.Close;
 
@@ -333,6 +356,14 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         
         //emit WinnersAnnounced(winners); remember to define this event later :-)
 
+    }
+
+    function setOperator(address newOperator) 
+        external 
+        onlyOwner 
+    {
+        require(newOperator != address(0), "Invalid operator address");
+        lotteryOperator = newOperator;
     } 
 
     function isWinner()
@@ -368,5 +399,3 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     }      
 
 }
-
-
