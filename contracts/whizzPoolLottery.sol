@@ -25,7 +25,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
 
     address public lotteryOperator; // admin addy
     address[] public lastWinnersAddy; //Addresses of the winners of the last round
-    address public constant treasuryAddy = 0xF3E71A6b9CDc8fC54f8dc9B80aC1E0f629A37cf3; //where all smart contract profits would be sent for safekeeping
+    address public constant treasuryAddy = 0xF3E71A6b9CDc8fC54f8dc9B80aC1E0f629A37cf3; //where all smart contract fees would be sent for safekeeping
 
     address[] public tickets; //tickets(address) array
 
@@ -34,7 +34,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     VRFCoordinatorV2Interface COORDINATOR;
     uint64 s_subscriptionId;
 
-    bytes32 keyHash = 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c ;
+    bytes32 keyHash = 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c ; // sort of a controller for the gas price. Each uint of the keyHAsh is mapped to an addy
     uint32 callbackGasLimit = 200000;
     uint16 requestConfirmations = 3; // the more this var, the more secure but the slower the txn
     uint32 numWords = 5; // Thought of adding this var to generate all the winners' ID so we just use one vrf call/cost per round instead of 5
@@ -97,7 +97,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
 
     
     /**
-     * Hardcoded for Polygon Mumbai
+     * Hardcoded specs for Polygon Mumbai
      */    
     constructor(
         uint16 subscriptionId
@@ -331,7 +331,9 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         return requestId;
     }
 
-    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords)
+
+    // Now working with the randomness we have generated
+    function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords)  
         internal
         override
     {
@@ -354,7 +356,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         // }
 
         
-        //emit WinnersAnnounced(winners); remember to define this event later :-)
+        //emit WinnersAnnounced(winners); I hope i remember to define this event later :-)
 
     }
 
