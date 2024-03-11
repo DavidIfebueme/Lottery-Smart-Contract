@@ -8,7 +8,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 import { VRFCoordinatorV2 } from "@chainlink/contracts/src/v0.8/VRFCoordinatorV2.sol";
-import { LinkTokenInterface } from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import { LinkTokenInterface } from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol"; // Dont even need this anymore.
+
+// Should add safeERC20 in this
 
 
 /** @title Main Lottery Contract.
@@ -21,7 +23,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     uint256 public ticketCommission = 0.2 *10**18;
     uint256 public maximumNumberOfTicketsPerBuy = 5; // Functionality to control this variable : setMaximumNumberOfTickets
     uint256 public currentLotteryId;
-    uint256 public lastWinnersAmounts; // Amounts the winners of last round won
+    uint256 public lastWinnersAmounts; // Amounts the winners of last round won. Should probably set this to ann array instead and map to winners addys
 
     address public lotteryOperator; // admin addy
     address[] public lastWinnersAddy; //Addresses of the winners of the last round
@@ -113,14 +115,14 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     }    
 
     struct Ticket{
-        address tickerOwner;
+        address tickerOwner; // This struct is almost useless. Remember to remove in future reviews
     }
 
     struct LotteryRound{
         Status status;
         uint256 lotteryStartTime;
         uint256 lotteryEndTime;
-        uint256 treasuryFee;
+        uint256 treasuryFee; // Each round will have a preset treasury fee. Maybe 5-10% of entire round
         uint256 totalAmountInCurrentRound;
     }
 
@@ -168,7 +170,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         // Funding the contract with the purchased tickets    
         payable(address(this)).transfer(ticketPrice * numberOfTicketsToBuy);
 
-        // Transfering commission to the treasury. SHould have probably done this just before emitting TicketPurchase. It is what it is.
+        // Transfering commission to the treasury. Should have probably done this just before emitting TicketPurchase. It is what it is.
         payable(treasuryAddy).transfer(ticketCommission * numberOfTicketsToBuy);
 
         // Incrementing total amount collected for this round
@@ -205,11 +207,11 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
         );
 
 
-        // I should probably optimize this process. It is what it is.
+        // I should probably optimize this process. Once again, It is what it is.
         uint256 totalAmount = _lotteryRounds[_lotteryId].totalAmountInCurrentRound;
         uint256 treasuryFee = totalAmount * _lotteryRounds[_lotteryId].treasuryFee / 10**18;
 
-        payable(treasuryAddy).transfer(treasuryFee);
+        payable(treasuryAddy).transfer(treasuryFee); // Preset treasury fee is transfered to treasury addy at the end of each round.
 
         _lotteryRounds[_lotteryId].status = Status.Close;
 
@@ -395,7 +397,7 @@ contract Lottery is Ownable(msg.sender), ReentrancyGuard, VRFConsumerBaseV2 { //
     {
         uint256 size;
         assembly {
-            size := extcodesize(_addr) // Using this opcode to check if there are any lines of code linked to this address then return true is so.
+            size := extcodesize(_addr) // purpose of this opcode is to check if there are any lines of code linked to this address then return true is so.
         }
         return size > 0;
     }      
